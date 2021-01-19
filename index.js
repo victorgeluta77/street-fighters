@@ -6,118 +6,143 @@ const loadingElement = document.getElementById('loading-overlay');
 const fightersDetailsMap = new Map();
  
 
-// start game
-
-async function startApp() {
-    try {
-      loadingElement.style.visibility = 'visible';
-      
-      const endpoint = 'repos/sahanr/street-fighter/contents/fighters.json';
-      const fighters = await callApi(endpoint, 'GET');
-      const fightersElement = createFighters(fighters);
-      
-      rootElement.appendChild(fightersElement);
-    } catch (error) {
-      console.warn(error);
-      rootElement.innerText = 'Failed to load data';
-    } finally {
-      loadingElement.style.visibility = 'hidden';
-    }
-  }
-  
 //   make query to the server and return file with information
-  function callApi(endpoind, method = 'GET') {
+function callApi(endpoind, method = 'GET') {
     const url = API_URL + endpoind;
     const options = {
       method
     };
-  
+  const name = '';
     return fetch(url, options)
       .then(response => response.ok ? response.json() : Promise.reject(Error('Failed to load')))
-      .then(file => JSON.parse(atob(file.content)))
-      .catch(error => {
-        console.warn(error);
-        rootElement.innerText = 'Failed to load data';
-      })
-      .finally(() => {
-        loadingElement.remove();
-      });
+      .catch(error => {throw error})
   }
  
- // create DOM elements 
+  // this class get data
+  class FighterService {
+    async getFighters() {
+      try {
+        const endpoint = 'repos/sahanr/street-fighter/contents/fighters.json';
+        const apiResult = await callApi(endpoint, 'GET');
+  
+        return JSON.parse(atob(apiResult.content));
+      } catch (error) {
+        throw error;
+      }
+    }
+  }
+  
+  const fighterService = new FighterService();
 
-  function createElement({ tagName, className = '', attributes = {} }) {
-    const element = document.createElement(tagName);
-    element.classList.add(className);
+  // this class make DOM's elements
+  class View {
+    element;
+  
+    createElement({ tagName, className = '', attributes = {} }) {
+      const element = document.createElement(tagName);
+      element.classList.add(className);
       
-    Object
-      .keys(attributes)
-      .forEach(key => element.setAttribute(key, attributes[key]));
+      Object.keys(attributes).forEach(key => element.setAttribute(key, attributes[key]));
   
-    return element;
-  }  
-// create Name of Elements
-  function createName(name) {
-    const nameElement = createElement({ tagName: 'span', className: 'name' });
-    nameElement.innerText = name;
-  
-    return nameElement;
-  }
-// create Image Elements
-  function createImage(source) {
-    const attributes = { src: source };
-    const imgElement = createElement({
-      tagName: 'img',
-      className: 'fighter-image',
-      attributes
-    });
-  
-    return imgElement;
+      return element;
+    }
   }
 
-// create fighter
+  // this class shows Fighters
+  class FighterView extends View {
+    constructor(fighter, handleClick) {
+      super();
 
-  function createFighter(fighter) {
-    const { name, source } = fighter;
-    const nameElement = createName(name);
-    const imageElement = createImage(source);
-    const element = createElement({ tagName: 'div', className: 'fighter' });
-
-    element.addEventListener('click', (event) => handleFighterClick(event, fighter), false);
- 
-    element.append(imageElement,nameElement);
-  
-    return element;
-  }
-  
-  function handleFighterClick(event, fighter) {
-    const { _id } = fighter;
-    console.log('fighter = ',fighter);
-
-    if(!fightersDetailsMap.has(_id)) {
-      // send request here
-      fightersDetailsMap.set(_id, fighter);
+      
+      this.createFighter(fighter, handleClick);
     }
   
-    console.log(fightersDetailsMap.get(_id));
-    
-   }
-
-// add and create Fighters
-
-  function createFighters(fighters) {
-    const fighterElements = fighters.map(fighter => createFighter(fighter));
-    const element = createElement({ tagName: 'div', className: 'fighters' });
+    createFighter(fighter, handleClick) {
+      const { name, source } = fighter;
+      const nameElement = this.createName(name);
+      const imageElement = this.createImage(source);
   
-    element.append(...fighterElements);
+      this.element = this.createElement({ tagName: 'div', className: 'fighter' });
+      this.element.append(imageElement, nameElement);
+      this.element.addEventListener('click', event => handleClick(event, fighter), false);
+    }
   
-    return element;
+    createName(name) {
+      const nameElement = this.createElement({ tagName: 'span', className: 'name' });
+      nameElement.innerText = name;
+  
+      return nameElement;
+    }
+  
+    createImage(source) {
+      const attributes = { src: source };
+      const imgElement = this.createElement({
+        tagName: 'img',
+        className: 'fighter-image',
+        attributes
+      });
+  
+      return imgElement;
+    }
+  }
+  // this class shows all fighters
+  class FightersView extends View {
+    constructor(fighters) {
+      super();
+      
+      this.handleClick = this.handleFighterClick.bind(this);
+      this.createFighters(fighters);
+    }
+  
+    // fightersDetailsMap = new Map();
+  
+    createFighters(fighters) {
+      const fighterElements = fighters.map(fighter => {
+        const fighterView = new FighterView(fighter, this.handleClick);
+        return fighterView.element;
+      });
+  
+      this.element = this.createElement({ tagName: 'div', className: 'fighters' });
+      this.element.append(...fighterElements);
+    }
+  
+    handleFighterClick(event, fighter) {
+      this.fightersDetailsMap.set(fighter._id, fighter);
+      console.log('clicked',this.fightersDetailsMap.set(fighter._id, fighter))
+
+      // get from map or load info and add to fightersMap
+      // show modal with fighter info
+      // allow to edit health and power in this modal
+    }
   }
 
-//    return fighter's name
-  function getFightersNames(fighters) {
-    const names = fighters.map(it => it.name).join('\n');
-    return names;
+  // this class app other classes and start game
+  class App {
+    constructor() {
+      this.startApp();
+    }
+  
+    // static rootElement = document.getElementById('root');
+    // static loadingElement = document.getElementById('loading-overlay');
+  
+    async startApp() {
+      try {
+        const rootElement = document.getElementById('root');
+        const loadingElement = document.getElementById('loading-overlay');
+        loadingElement.style.visibility = 'visible';
+  
+        const fighters = await fighterService.getFighters();
+        const fightersView = new FightersView(fighters);
+        const fightersElement = fightersView.element;
+  
+        rootElement.appendChild(fightersElement);
+      } catch (error) {
+        console.warn(error);
+        rootElement.innerText = 'Failed to load data';
+      } finally {
+        loadingElement.style.visibility = 'hidden';
+      }
+    }
   }
   
-  startApp();
+  new App();
